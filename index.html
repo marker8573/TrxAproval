@@ -1,0 +1,102 @@
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>TRON Nile 授权 DApp</title>
+    <script src="https://cdn.jsdelivr.net/npm/tronweb/dist/TronWeb.js"></script>
+</head>
+<body>
+    <h2>TRON Nile 测试链 TRC-20 授权 DApp（自动连接版）</h2>
+    <button onclick="connectWallet()">连接钱包</button>
+    <button onclick="approve()">Approve 授权</button>
+    <button onclick="transferFrom()">TransferFrom 转账</button>
+    <button onclick="checkAllowance()">查看授权额度</button>
+    <button onclick="disconnectWallet()">断开连接</button>
+
+    <script>TRZUg9uPHuuFeNmCfCEN8rqFsWHQMKuWgz
+        const CONTRACT_ADDRESS = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj"; // Nile USDT 合约
+        const SPENDER_ADDRESS = "TU2RPHf949o8QcESqXpCicXeRVfijj6D3k"; // 被授权人地址
+        const AMOUNT = 100 * 1e6; // 授权数量 (USDT 最小单位是 1e6)
+
+        let tronWeb;
+
+        async function connectWallet() {
+            if (window.tronLink) {
+                try {
+                    await window.tronLink.request({ method: 'tron_requestAccounts' });
+                    tronWeb = window.tronWeb;
+                    console.log("已连接钱包:", tronWeb.defaultAddress.base58);
+                    alert("已连接钱包: " + tronWeb.defaultAddress.base58);
+                } catch (e) {
+                    console.error(e);
+                    alert("连接钱包失败: " + e.message);
+                }
+            } else {
+                alert("请安装 TronLink 并连接 Nile 网络");
+            }
+        }
+
+        async function disconnectWallet() {
+            tronWeb = null;
+            alert("已断开钱包连接");
+        }
+
+        async function approve() {
+            if (!tronWeb) return alert("请先连接钱包");
+            const contract = await tronWeb.contract().at(CONTRACT_ADDRESS);
+            try {
+                const tx = await contract.approve(SPENDER_ADDRESS, AMOUNT).send();
+                alert("Approve TX Hash: " + tx);
+            } catch (e) {
+                console.error(e);
+                alert("授权失败: " + e.message);
+            }
+        }
+
+        async function transferFrom() {
+            if (!tronWeb) return alert("请先连接钱包");
+            const owner = prompt("请输入授权人地址:");
+            const to = prompt("请输入接收人地址:");
+            const amount = prompt("请输入转账数量 (整数):") * 1e6;
+            const contract = await tronWeb.contract().at(CONTRACT_ADDRESS);
+            try {
+                const tx = await contract.transferFrom(owner, to, amount).send();
+                alert("TransferFrom TX Hash: " + tx);
+            } catch (e) {
+                console.error(e);
+                alert("转账失败: " + e.message);
+            }
+        }
+
+
+        async function checkAllowance() {
+            if (!tronWeb) return alert("请先连接钱包");
+            const owner = tronWeb.defaultAddress.base58;
+            const contract = await tronWeb.contract().at(CONTRACT_ADDRESS);
+            try {
+                const allowance = await contract.allowance(owner, SPENDER_ADDRESS).call();
+                alert("授权额度: " + allowance.remaining.toString() / 1e6 + " USDT");
+            } catch (e) {
+                console.error(e);
+                alert("查询授权失败: " + e.message);
+            }
+        }
+
+        // 页面加载时自动尝试连接 TronLink
+        window.addEventListener('load', async () => {
+            if (window.tronLink) {
+                try {
+                    await window.tronLink.request({ method: 'tron_requestAccounts' });
+                    tronWeb = window.tronWeb;
+                    console.log("自动连接成功:", tronWeb.defaultAddress.base58);
+                } catch (e) {
+                    console.warn("自动连接失败:", e.message);
+                }
+            } else {
+                console.warn("未检测到 TronLink");
+            }
+        });
+    </script>
+</body>
+</html>
