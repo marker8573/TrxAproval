@@ -1,285 +1,103 @@
+
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>TRON 多钱包授权 DApp（手机适配 + Deep Link）</title>
-  <script src="https://cdn.jsdelivr.net/npm/tronweb/dist/TronWeb.js"></script>
-  <style>
-    :root { --primary:#2563eb; --bg:#0b1020; --card:#0f172a; --text:#e2e8f0; --muted:#94a3b8; }
-    * { box-sizing: border-box; }
-    body { margin:0; padding:0; background:linear-gradient(180deg,#0b1020,#111827); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif; }
-    .wrap { max-width:560px; margin:0 auto; padding:16px; }
-    .card { background:rgba(15,23,42,.85); border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35); backdrop-filter:blur(8px); margin-top:16px; }
-    h1 { font-size:1.25rem; margin:0 0 8px; }
-    .sub { color:var(--muted); font-size:.9rem; margin-bottom:12px; }
-    .row { display:grid; grid-template-columns:1fr; gap:8px; }
-    .kv { background:#0b1327; border:1px solid rgba(255,255,255,.06); padding:10px; border-radius:12px; font-size:.9rem; word-break:break-all; }
-    .btn { width:100%; padding:14px 16px; font-size:1rem; border:0; border-radius:12px; color:#fff; background:linear-gradient(135deg,#2563eb,#4f46e5); box-shadow:0 8px 16px rgba(37,99,235,.35); }
-    .btn.secondary { background:#334155; }
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .muted { color:var(--muted); font-size:.85rem; }
-    .sp { height:8px; }
-    .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace; }
-    .deeplink-buttons { display:flex; flex-direction:column; gap:10px; }
-    .deeplink-buttons a { text-decoration:none; }
-    .qr { display:flex; justify-content:center; align-items:center; padding:12px; }
-    .tip { font-size:.9rem; color:#cbd5e1; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TRON 多钱包授权 DApp</title>
+<style>
+    body { font-family: Arial, sans-serif; padding: 10px; text-align: center; }
+    button { padding: 10px 15px; margin: 5px; font-size: 16px; border-radius: 8px; }
+    .hidden { display: none; }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card" id="appCard" style="display:none;">
-      <h1>TRON 多钱包授权 DApp</h1>
-      <div class="sub">支持手机 TP / TronLink / imToken（DApp 浏览器内）以及桌面 TronLink 插件</div>
+<h1>TRON 授权 DApp</h1>
+<div id="main-ui" class="hidden">
+    <p>已检测到钱包环境，可以进行授权和转账。</p>
+    <button onclick="connectWallet()">连接钱包</button>
+    <button onclick="approve()">Approve 授权</button>
+    <button onclick="checkAllowance()">查看授权额度</button>
+    <button onclick="transfer()">转账</button>
+    <button onclick="transferFrom()">授权转账</button>
+</div>
 
-      <div class="row">
-        <div class="kv"><b>钱包地址</b><br><span id="addr" class="mono">未连接</span></div>
-        <div class="kv"><b>网络</b><br><span id="network" class="mono">未知</span></div>
-      </div>
-
-      <div class="sp"></div>
-      <button class="btn" onclick="connectWallet()">连接钱包</button>
-      <div class="grid">
-        <button class="btn" onclick="approve()">Approve 授权</button>
-        <button class="btn" onclick="checkAllowance()">查看授权额度</button>
-        <button class="btn secondary" onclick="transferDirect()">Transfer（直接转账）</button>
-        <button class="btn secondary" onclick="transferFrom()">TransferFrom（用授权）</button>
-      </div>
-      <div class="sp"></div>
-      <button class="btn secondary" onclick="disconnectWallet()">断开连接</button>
-
-      <div class="sp"></div>
-      <div class="kv">
-        <b>当前参数（可在代码顶部修改）</b>
-        <div class="mono" id="params"></div>
-        <div class="muted">提示：TRC‑20 常见精度为 6，USDT(Nile) 合约：<code>TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf</code></div>
-      </div>
-
-      <div class="sp"></div>
-      <div class="kv"><b>状态</b><br><div id="status" class="mono">等待操作…</div></div>
+<div id="fallback-ui" class="hidden">
+    <h2>未检测到钱包，请在以下钱包打开</h2>
+    <a id="tp-link" style="font-size:20px;color:blue;">在 TokenPocket 打开</a><br><br>
+    <a id="tronlink-link" style="font-size:20px;color:green;">在 TronLink 打开</a><br><br>
+    <div>
+        <p>扫码在钱包中打开：</p>
+        <img id="qrcode" alt="DApp QR Code" style="width:200px;height:200px;">
     </div>
+    <br>
+    <button onclick="detectWallet(true)">重新检测</button>
+</div>
 
-    <div class="card" id="deeplinkCard" style="display:none;">
-      <h1>在钱包中打开以继续</h1>
-      <div class="tip">未检测到钱包环境。你可以：</div>
-      <div class="sp"></div>
-      <div class="deeplink-buttons">
-        <a class="btn" id="tpDeepLink" href="#" rel="noopener">在 TokenPocket 打开</a>
-        <a class="btn" id="tronlinkDeepLink" href="#" rel="noopener">在 TronLink 打开</a>
-      </div>
-      <div class="sp"></div>
-      <div class="kv">
-        <b>或使用钱包“扫一扫”扫描二维码</b>
-        <div class="qr" id="qrcode"></div>
-        <div class="muted mono" id="targetUrl"></div>
-      </div>
-      <div class="sp"></div>
-      <div class="muted">imToken 用户请打开 imToken 的 DApp 浏览器，手动输入或扫描上方链接/二维码。</div>
-    </div>
-  </div>
-
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <script>
-// ===== 配置区（你可按需修改） =====
-const DAPP_URL          = "https://marker8573.github.io/TrxAproval/"; // 部署地址：用于 deep link & 二维码
-const CONTRACT_ADDRESS  = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj"; // 代币合约（默认：Nile USDT）
-const SPENDER_ADDRESS   = "TU2RPHf949o8QcESqXpCicXeRVfijj6D3k";  // 被授权人（发起 transferFrom 的地址）
-const RECIPIENT_ADDRESS = "TMha7c19AkZ9Zg4WTqNHSucBviFHUBPUqk";  // 接收地址
-const DECIMALS          = 6;          // 代币精度
-const APPROVE_AMOUNT    = "100";      // 授权数量（人类可读）
-const TRANSFER_AMOUNT   = "5";        // 转账数量（人类可读）
-// ===================================
+const DAPP_URL = "https://marker8573.github.io/TrxAproval/";
+const CONTRACT_ADDRESS = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj";
+const SPENDER_ADDRESS = "TU2RPHf949o8QcESqXpCicXeRVfijj6D3k";
+const RECIPIENT_ADDRESS = "TMha7c19AkZ9Zg4WTqNHSucBviFHUBPUqk";
+const DECIMALS = 6;
+const APPROVE_AMOUNT = "100";
+const TRANSFER_AMOUNT = "5";
 
-let tronWeb = null;
-let currentAddress = null;
-const $ = (id) => document.getElementById(id);
-const setStatus = (msg) => { $("status").textContent = msg; };
-const humanToUnits = (valStr) => {
-  const [intPart, fracRaw=""] = String(valStr).split(".");
-  const frac = (fracRaw + "0".repeat(DECIMALS)).slice(0, DECIMALS);
-  return BigInt(intPart + frac);
-};
-const unitsToHuman = (bn) => {
-  const s = bn.toString();
-  if (DECIMALS === 0) return s;
-  const pad = s.padStart(DECIMALS + 1, "0");
-  const i = pad.slice(0, -DECIMALS);
-  const f = pad.slice(-DECIMALS).replace(/0+$/,"");
-  return f ? i + "." + f : i;
-};
+let walletCheckTimer = null;
+let walletDetected = false;
 
-function renderParams(){
-  $("params").innerText =
-`DApp: ${DAPP_URL}
-Token: ${CONTRACT_ADDRESS}
-Spender: ${SPENDER_ADDRESS}
-Recipient: ${RECIPIENT_ADDRESS}
-Decimals: ${DECIMALS}
-ApproveAmount: ${APPROVE_AMOUNT}
-TransferAmount: ${TRANSFER_AMOUNT}`;
+function showMainUI(){
+    document.getElementById("main-ui").classList.remove("hidden");
+    document.getElementById("fallback-ui").classList.add("hidden");
 }
 
-async function detectNetwork(){
-  try{
-    if (!tronWeb) return;
-    const nodeInfo = await tronWeb.trx.getNodeInfo();
-    const pretty = (nodeInfo && nodeInfo.configNodeInfo && nodeInfo.configNodeInfo.codeVersion) ? "TRON " + nodeInfo.configNodeInfo.codeVersion : "TRON";
-    $("network").textContent = pretty + (tronWeb.fullNode?.host ? (" @ " + tronWeb.fullNode.host) : "");
-  }catch(e){
-    $("network").textContent = "已连接（节点信息不可用）";
-  }
+function showFallbackUI(){
+    document.getElementById("main-ui").classList.add("hidden");
+    document.getElementById("fallback-ui").classList.remove("hidden");
+    document.getElementById("tp-link").href = "tpoutside://pull.activity?params=" + encodeURIComponent(JSON.stringify({url:DAPP_URL,chain:"TRON"}));
+    document.getElementById("tronlink-link").href = "tronlinkoutside://open?url=" + encodeURIComponent(DAPP_URL);
+    QRCode.toDataURL(DAPP_URL).then(url => {
+        document.getElementById("qrcode").src = url;
+    });
 }
 
+function detectWallet(force=false){
+    if(walletCheckTimer) clearInterval(walletCheckTimer);
+    let elapsed = 0;
+    walletDetected = false;
+    walletCheckTimer = setInterval(() => {
+        elapsed += 500;
+        if (window.tronWeb && window.tronWeb.defaultAddress.base58) {
+            walletDetected = true;
+            clearInterval(walletCheckTimer);
+            showMainUI();
+        }
+        if (elapsed >= 10000 && !walletDetected) {
+            clearInterval(walletCheckTimer);
+            showFallbackUI();
+        }
+    }, 500);
+    if(force) elapsed = 0;
+}
+
+// 钱包连接逻辑
 async function connectWallet(){
-  try{
-    if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58){
-      tronWeb = window.tronWeb; // 移动端钱包 DApp 浏览器
-    } else if (window.tronLink){
-      await window.tronLink.request({ method: 'tron_requestAccounts' }); // 桌面 TronLink 插件
-      tronWeb = window.tronWeb;
-    } else {
-      // 普通浏览器：展示 deeplink 面板
-      showDeepLink();
-      return;
+    if (!window.tronWeb || !window.tronWeb.defaultAddress.base58) {
+        alert("未检测到钱包");
+        return;
     }
-    currentAddress = tronWeb.defaultAddress.base58;
-    $("addr").textContent = currentAddress;
-    $("appCard").style.display = "block";
-    $("deeplinkCard").style.display = "none";
-    setStatus("钱包已连接");
-    detectNetwork();
-  }catch(err){
-    console.error(err);
-    setStatus("连接失败: " + (err.message || String(err)));
-  }
+    alert("已连接钱包: " + window.tronWeb.defaultAddress.base58);
 }
 
-function disconnectWallet(){
-  tronWeb = null;
-  currentAddress = null;
-  $("addr").textContent = "未连接";
-  setStatus("已断开连接（如需彻底断开，请在钱包内移除站点授权）");
-  $("network").textContent = "未知";
-}
+// 以下是简化的授权与转账逻辑（需替换为 TRC20 调用）
+async function approve(){ alert("执行 Approve 到 " + SPENDER_ADDRESS); }
+async function checkAllowance(){ alert("查询 " + SPENDER_ADDRESS + " 的授权额度"); }
+async function transfer(){ alert("转账 " + TRANSFER_AMOUNT + " 到 " + RECIPIENT_ADDRESS); }
+async function transferFrom(){ alert("授权转账 " + TRANSFER_AMOUNT + " 到 " + RECIPIENT_ADDRESS); }
 
-async function getContract(){
-  if (!tronWeb) throw new Error("请先连接钱包");
-  return await tronWeb.contract().at(CONTRACT_ADDRESS);
-}
-
-async function approve(){
-  try{
-    if (!tronWeb) return setStatus("请先连接钱包");
-    const contract = await getContract();
-    const amount = humanToUnits(APPROVE_AMOUNT);
-    setStatus("发送授权交易中...");
-    const tx = await contract.approve(SPENDER_ADDRESS, amount.toString()).send();
-    setStatus("授权已发送，Tx: " + tx);
-  }catch(err){
-    console.error(err);
-    setStatus("授权失败: " + (err?.message || String(err)));
-  }
-}
-
-async function checkAllowance(){
-  try{
-    if (!tronWeb) return setStatus("请先连接钱包");
-    if (!currentAddress) currentAddress = tronWeb.defaultAddress.base58;
-    const contract = await getContract();
-    const res = await contract.allowance(currentAddress, SPENDER_ADDRESS).call();
-    let raw = res?.remaining ?? res;
-    if (typeof raw === "object" && raw._hex) { raw = BigInt(raw._hex); }
-    else if (typeof raw === "string") { raw = BigInt(raw); }
-    else if (typeof raw === "number") { raw = BigInt(raw); }
-    const human = unitsToHuman(raw);
-    setStatus("当前授权额度: " + human);
-  }catch(err){
-    console.error(err);
-    setStatus("查询失败: " + (err?.message || String(err)));
-  }
-}
-
-async function transferDirect(){
-  try{
-    if (!tronWeb) return setStatus("请先连接钱包");
-    const contract = await getContract();
-    const amount = humanToUnits(TRANSFER_AMOUNT);
-    setStatus("发送直接转账交易中...");
-    const tx = await contract.transfer(RECIPIENT_ADDRESS, amount.toString()).send();
-    setStatus("Transfer 已发送，Tx: " + tx);
-  }catch(err){
-    console.error(err);
-    setStatus("Transfer 失败: " + (err?.message || String(err)));
-  }
-}
-
-async function transferFrom(){
-  try{
-    if (!tronWeb) return setStatus("请先连接钱包");
-    if (!currentAddress) currentAddress = tronWeb.defaultAddress.base58;
-    if (currentAddress && SPENDER_ADDRESS && currentAddress !== SPENDER_ADDRESS){
-      setStatus("警告：当前连接的钱包不是被授权的 SPENDER，transferFrom 可能会失败。");
-    }
-    const contract = await getContract();
-    const amount = humanToUnits(TRANSFER_AMOUNT);
-    setStatus("发送 transferFrom 交易中...");
-    const tx = await contract.transferFrom(currentAddress, RECIPIENT_ADDRESS, amount.toString()).send();
-    setStatus("transferFrom 已发送，Tx: " + tx);
-  }catch(err){
-    console.error(err);
-    setStatus("transferFrom 失败: " + (err?.message || String(err)));
-  }
-}
-
-// ----- Deep Link 逻辑 -----
-function showDeepLink(){
-  $("appCard").style.display = "none";
-  $("deeplinkCard").style.display = "block";
-  $("targetUrl").textContent = DAPP_URL;
-
-  // TokenPocket deep link（官方文档示例样式）
-  const tpLink = `tpoutside://pull.activity?params=${encodeURIComponent(JSON.stringify({ url: DAPP_URL, chain: "TRON" }))}`;
-  $("tpDeepLink").href = tpLink;
-
-  // TronLink deep link（部分版本支持）
-  const tronLink = `tronlinkoutside://open?url=${encodeURIComponent(DAPP_URL)}`;
-  $("tronlinkDeepLink").href = tronLink;
-
-  // 创建二维码
-  makeQR("qrcode", DAPP_URL);
-}
-
-// 简单 QR 码生成（内置极简版 QR 算法，避免外链依赖）
-/*! qrcode.js (minimal) */
-!function(){function l(a,b){this._el=a,this._htOption=b}function n(a,b){this._oQRCode=new qrcode(a,b),this._oQRCode.make()}function p(a,b){this._oQRCode=new qrcode(a,b),this._oQRCode.make()}function q(a,b){this._htOption=b,this._el={style:{}},this._android=-1<this._getAndroid()},l.prototype.clear=function(){this._el.innerHTML=""},l.prototype.makeCode=function(a){this._htOption.text=a;var b=new n(a,4);this._el.innerHTML="";var c=document.createElement("canvas"),d=c.getContext("2d"),e=b._oQRCode.modules.length,f=4,g=e*f;c.width=g,c.height=g;for(var h=0;h<e;h++)for(var i=0;i<e;i++)d.fillStyle=b._oQRCode.modules[h][i]?"#000":"#fff",d.fillRect(i*f,h*f,f,f);this._el.appendChild(c)};window.QRCode=l,window.qrcode=function(a,b){return{make:function(){this.modules=Array.from({length:29},()=>Array(29).fill(0));for(var i=0;i<29;i++)this.modules[i][i]=1}}};}();
-
-function makeQR(domId, text){
-  try{
-    var el = document.getElementById(domId);
-    var qr = new QRCode(el, { width: 220, height: 220 });
-    if (qr.makeCode) qr.makeCode(text);
-    else { el.innerHTML = '<div style="color:#fca5a5">二维码库加载失败，请直接复制上方链接到钱包 DApp 浏览器</div>'; }
-  }catch(e){
-    document.getElementById(domId).innerHTML = '<div style="color:#fca5a5">二维码生成失败，请直接复制上方链接到钱包 DApp 浏览器</div>';
-  }
-}
-
-// 页面加载：若检测到钱包则显示 DApp 面板，否则展示 deep link 面板
-window.addEventListener("load", () => {
-  renderParams();
-  setTimeout(() => {
-    if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58){
-      $("appCard").style.display = "block";
-      $("deeplinkCard").style.display = "none";
-      tronWeb = window.tronWeb;
-      currentAddress = tronWeb.defaultAddress.base58;
-      $("addr").textContent = currentAddress;
-      detectNetwork();
-    } else {
-      showDeepLink();
-    }
-  }, 400);
-});
+// 页面加载开始检测
+detectWallet();
 </script>
 </body>
 </html>
